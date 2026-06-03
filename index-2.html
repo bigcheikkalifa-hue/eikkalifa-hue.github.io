@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Système de Contrôle Automatique de Température — Arduino</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #F5F0E8;
+    --warm-white: #FAFAF7;
+    --ink: #1A1A18;
+    --ink-light: #4A4A44;
+    --ink-muted: #8A8A80;
+    --accent: #CC785C;
+    --accent-light: #E8A882;
+    --accent-pale: #F5E6DC;
+    --border: #E2DDD4;
+    --border-strong: #C8C2B6;
+    --green: #2D6A4F;
+    --blue: #2C5282;
+    --red: #C53030;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'DM Sans', 'Helvetica Neue', sans-serif; background: var(--warm-white); color: var(--ink); line-height: 1.6; overflow-x: hidden; }
+
+  /* NAV */
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(250,250,247,0.93); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 58px; display: flex; align-items: center; justify-content: space-between; }
+  .nav-logo { font-family: 'Playfair Display', Georgia, serif; font-size: 0.88rem; color: var(--ink); }
+  .nav-logo span { color: var(--accent); }
+  .nav-links { display: flex; gap: 2rem; list-style: none; }
+  .nav-links a { font-size: 0.78rem; color: var(--ink-light); text-decoration: none; letter-spacing: 0.04em; text-transform: uppercase; transition: color 0.2s; }
+  .nav-links a:hover, .nav-links a.active { color: var(--accent); }
+
+  /* HERO */
+  .hero { min-height: 100vh; display: flex; align-items: center; padding: 8rem 2rem 5rem; background: var(--cream); position: relative; overflow: hidden; }
+  .hero::before { content:''; position:absolute; top:-180px; right:-180px; width:550px; height:550px; background:radial-gradient(circle,rgba(204,120,92,0.13) 0%,transparent 70%); pointer-events:none; }
+  .hero::after { content:''; position:absolute; bottom:-80px; left:-80px; width:350px; height:350px; background:radial-gradient(circle,rgba(45,106,79,0.08) 0%,transparent 70%); pointer-events:none; }
+  .hero-inner { max-width: 1100px; margin: 0 auto; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 5rem; align-items: center; }
+  .hero-badge { display:inline-flex; align-items:center; gap:0.5rem; background:var(--accent-pale); border:1px solid var(--accent-light); color:var(--accent); font-size:0.7rem; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; padding:0.35rem 0.9rem; border-radius:100px; margin-bottom:1.5rem; animation:fadeUp 0.6s ease both; }
+  .hero-badge::before { content:''; width:6px; height:6px; background:var(--accent); border-radius:50%; animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+  .hero-title { font-family:'Playfair Display',Georgia,serif; font-size:clamp(2rem,3.8vw,3.2rem); font-weight:400; line-height:1.18; letter-spacing:-0.01em; margin-bottom:1.4rem; animation:fadeUp 0.7s 0.1s ease both; }
+  .hero-title em { font-style:italic; color:var(--accent); }
+  .hero-desc { font-size:0.95rem; color:var(--ink-light); line-height:1.8; margin-bottom:2.5rem; animation:fadeUp 0.7s 0.2s ease both; }
+  .hero-actions { display:flex; gap:1rem; flex-wrap:wrap; animation:fadeUp 0.7s 0.3s ease both; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
+
+  /* BUTTONS */
+  .btn { display:inline-flex; align-items:center; gap:0.5rem; padding:0.72rem 1.4rem; border-radius:8px; font-size:0.83rem; font-weight:500; text-decoration:none; cursor:pointer; border:none; transition:all 0.2s ease; letter-spacing:0.01em; }
+  .btn-primary { background:var(--ink); color:var(--warm-white); }
+  .btn-primary:hover { background:var(--accent); transform:translateY(-1px); box-shadow:0 4px 16px rgba(204,120,92,0.3); }
+  .btn-secondary { background:transparent; color:var(--ink); border:1px solid var(--border-strong); }
+  .btn-secondary:hover { background:var(--cream); border-color:var(--ink); transform:translateY(-1px); }
+
+  /* HERO VISUAL — STATE CARD */
+  .hero-visual { animation:fadeUp 0.8s 0.2s ease both; }
+  .state-card { background:var(--warm-white); border:1px solid var(--border); border-radius:16px; padding:1.4rem; box-shadow:0 8px 40px rgba(26,26,24,0.08); }
+  .state-card-title { font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-muted); margin-bottom:1.1rem; font-weight:500; }
+  .states-grid { display:grid; gap:0.65rem; }
+  .state-row { display:flex; align-items:center; gap:0.9rem; padding:0.85rem 1rem; border-radius:10px; border:1px solid transparent; }
+  .state-normal { background:#F0FDF4; border-color:#BBF7D0; }
+  .state-ventil { background:#EFF6FF; border-color:#BFDBFE; }
+  .state-alerte { background:#FEF2F2; border-color:#FECACA; }
+  .state-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .dot-green { background:var(--green); box-shadow:0 0 0 3px rgba(45,106,79,0.2); }
+  .dot-blue { background:var(--blue); box-shadow:0 0 0 3px rgba(44,82,130,0.2); }
+  .dot-red { background:var(--red); animation:blink 1s infinite; box-shadow:0 0 0 3px rgba(197,48,48,0.2); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+  .state-info { flex:1; }
+  .state-name { font-size:0.8rem; font-weight:500; color:var(--ink); }
+  .state-cond { font-size:0.7rem; color:var(--ink-muted); margin-top:0.1rem; }
+  .state-temp { font-family:'Playfair Display',Georgia,serif; font-size:1rem; color:var(--ink-light); }
+  .seuils-row { margin-top:1.1rem; padding:0.9rem 1.1rem; background:var(--cream); border-radius:10px; display:flex; align-items:center; justify-content:space-around; }
+  .seuil-item { text-align:center; }
+  .seuil-label { font-size:0.65rem; color:var(--ink-muted); text-transform:uppercase; letter-spacing:0.06em; }
+  .seuil-val { font-family:'Playfair Display',Georgia,serif; font-size:1.7rem; letter-spacing:-0.02em; margin-top:0.15rem; }
+  .seuil-divider { width:1px; height:36px; background:var(--border); }
+
+  /* SECTIONS */
+  section { padding: 5.5rem 2rem; }
+  .section-inner { max-width: 1100px; margin: 0 auto; }
+  .section-label { font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--accent); font-weight:500; margin-bottom:0.6rem; }
+  .section-title { font-family:'Playfair Display',Georgia,serif; font-size:clamp(1.7rem,2.8vw,2.4rem); font-weight:400; letter-spacing:-0.01em; line-height:1.22; margin-bottom:0.9rem; color:var(--ink); }
+  .section-subtitle { font-size:0.95rem; color:var(--ink-light); line-height:1.75; max-width:540px; }
+
+  /* PROJET */
+  #projet { background:var(--warm-white); }
+  .projet-grid { display:grid; grid-template-columns:1fr 1fr; gap:3.5rem; margin-top:3rem; align-items:start; }
+  .info-blocks { display:flex; flex-direction:column; gap:1.4rem; }
+  .info-block { border-left:2px solid var(--border); padding-left:1.2rem; transition:border-color 0.3s; }
+  .info-block:hover { border-color:var(--accent); }
+  .info-block-title { font-size:0.72rem; font-weight:500; letter-spacing:0.04em; text-transform:uppercase; color:var(--ink-muted); margin-bottom:0.35rem; }
+  .info-block-text { font-size:0.88rem; color:var(--ink-light); line-height:1.65; }
+  .components-list { background:var(--cream); border:1px solid var(--border); border-radius:12px; padding:1.4rem; }
+  .comp-title { font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-muted); margin-bottom:0.9rem; font-weight:500; }
+  .comp-item { display:flex; align-items:center; gap:0.7rem; padding:0.55rem 0; border-bottom:1px solid var(--border); font-size:0.85rem; color:var(--ink-light); }
+  .comp-item:last-child { border-bottom:none; }
+  .comp-icon { width:26px; height:26px; background:var(--warm-white); border:1px solid var(--border); border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:0.8rem; flex-shrink:0; }
+  .brochage { margin-top:1.1rem; padding:0.85rem 1rem; background:var(--warm-white); border:1px solid var(--border); border-radius:8px; }
+  .brochage-title { font-size:0.65rem; color:var(--ink-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.4rem; }
+  .brochage code { font-size:0.75rem; color:var(--ink-light); line-height:1.9; display:block; font-family:monospace; }
+
+  /* PROTOTYPE */
+  #prototype { background:var(--cream); }
+  .proto-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.1rem; margin-top:2.5rem; }
+  .proto-card { border-radius:14px; overflow:hidden; border:1px solid var(--border); background:var(--warm-white); transition:all 0.3s ease; }
+  .proto-card:hover { transform:translateY(-3px); box-shadow:0 12px 40px rgba(26,26,24,0.1); border-color:var(--accent); }
+  .proto-card img { width:100%; height:400px; object-fit:cover; display:block; }
+  .proto-caption { padding:1rem 1.25rem; }
+  .proto-caption-state { display:inline-flex; align-items:center; gap:0.4rem; font-size:0.68rem; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; padding:0.25rem 0.7rem; border-radius:100px; margin-bottom:0.5rem; }
+  .cap-ventil { background:#EFF6FF; color:var(--blue); border:1px solid #BFDBFE; }
+  .cap-alerte { background:#FEF2F2; color:var(--red); border:1px solid #FECACA; }
+  .proto-caption-title { font-size:0.88rem; font-weight:500; color:var(--ink); margin-bottom:0.2rem; }
+  .proto-caption-desc { font-size:0.78rem; color:var(--ink-muted); line-height:1.5; }
+
+  /* SIMULATION */
+  #simulation { background:var(--warm-white); }
+  .sim-card { margin-top:2.5rem; background:var(--cream); border:1px solid var(--border); border-radius:18px; overflow:hidden; box-shadow:0 8px 48px rgba(26,26,24,0.06); }
+  .sim-header { padding:1.75rem 2rem; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; background:var(--warm-white); }
+  .sim-header h3 { font-family:'Playfair Display',Georgia,serif; font-size:1.2rem; font-weight:400; margin-bottom:0.25rem; }
+  .sim-header p { font-size:0.8rem; color:var(--ink-muted); }
+  .sim-body { padding:2.5rem 2rem; display:flex; align-items:center; justify-content:center; min-height:200px; }
+  .sim-body-inner { text-align:center; }
+  .sim-emoji { font-size:2.5rem; margin-bottom:1rem; }
+  .sim-body h4 { font-family:'Playfair Display',Georgia,serif; font-size:1.1rem; font-weight:400; margin-bottom:0.5rem; }
+  .sim-body p { font-size:0.83rem; color:var(--ink-muted); max-width:340px; margin:0 auto 1.5rem; line-height:1.65; }
+
+  /* DOCUMENTATION */
+  #documentation { background:var(--cream); }
+  .docs-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.1rem; margin-top:2.5rem; }
+  .doc-card { background:var(--warm-white); border:1px solid var(--border); border-radius:13px; padding:1.6rem; text-decoration:none; color:inherit; transition:all 0.25s ease; display:flex; flex-direction:column; gap:0.9rem; }
+  .doc-card:hover { border-color:var(--accent); transform:translateY(-3px); box-shadow:0 8px 28px rgba(204,120,92,0.1); }
+  .doc-icon { width:42px; height:42px; background:var(--cream); border:1px solid var(--border); border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; }
+  .doc-title { font-size:0.9rem; font-weight:500; color:var(--ink); line-height:1.4; }
+  .doc-desc { font-size:0.78rem; color:var(--ink-muted); line-height:1.6; flex:1; }
+  .doc-link { font-size:0.76rem; color:var(--accent); display:flex; align-items:center; gap:0.3rem; font-weight:500; }
+
+  /* ÉQUIPE */
+  #equipe { background:var(--warm-white); }
+  .team-section-label { font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-muted); font-weight:500; margin:2.5rem 0 1rem; }
+  .team-section-label:first-of-type { margin-top:2.8rem; }
+  .members-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1.1rem; }
+  .member-card { background:var(--cream); border:1px solid var(--border); border-radius:13px; padding:1.4rem; transition:all 0.25s ease; }
+  .member-card:hover { border-color:var(--border-strong); transform:translateY(-2px); }
+  .member-avatar { width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Playfair Display',Georgia,serif; font-size:0.95rem; margin-bottom:0.9rem; flex-shrink:0; }
+  .av-member { background:var(--ink); color:var(--cream); }
+  .av-encadrant { background:var(--accent); color:var(--warm-white); }
+  .member-name { font-size:0.85rem; font-weight:500; color:var(--ink); line-height:1.4; margin-bottom:0.25rem; }
+  .member-role { font-size:0.73rem; color:var(--ink-muted); }
+
+  /* FOOTER */
+  footer { background:var(--ink); color:var(--cream); padding:3rem 2rem; text-align:center; }
+  .footer-title { font-family:'Playfair Display',Georgia,serif; font-size:1rem; font-weight:400; margin-bottom:0.5rem; }
+  .footer-sub { font-size:0.78rem; color:rgba(245,240,232,0.45); line-height:1.75; margin-bottom:1.5rem; }
+  .footer-divider { border:none; border-top:1px solid rgba(245,240,232,0.1); margin:1.25rem auto; max-width:400px; }
+  .footer-copy { font-size:0.72rem; color:rgba(245,240,232,0.3); }
+
+  /* REVEAL */
+  .reveal { opacity:0; transform:translateY(18px); transition:opacity 0.6s ease,transform 0.6s ease; }
+  .reveal.visible { opacity:1; transform:translateY(0); }
+
+  /* RESPONSIVE */
+  @media(max-width:768px){
+    .nav-links{display:none}
+    .hero-inner,.projet-grid{grid-template-columns:1fr;gap:2.5rem}
+    .proto-grid,.docs-grid,.members-grid{grid-template-columns:1fr}
+    section{padding:3.5rem 1.25rem}
+  }
+
+  .proto-grid-full {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin-top: 2.5rem;
+  }
+  .proto-grid-full > div:first-child {
+    grid-column: 1 / -1;
+  }
+
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">Contrôle de <span>Température</span> — Arduino</div>
+  <ul class="nav-links">
+    <li><a href="#projet">Projet</a></li>
+    <li><a href="#prototype">Prototype</a></li>
+    <li><a href="#simulation">Simulation</a></li>
+    <li><a href="#documentation">Documentation</a></li>
+    <li><a href="#equipe">Équipe</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <div>
+      <div class="hero-badge">Projet de fin de cycle · L3 Énergie PV · 2025–2026</div>
+      <h1 class="hero-title">Système de <em>contrôle automatique</em> de température avec Arduino</h1>
+      <p class="hero-desc">Un prototype embarqué sur Arduino UNO intégrant capteur DHT11, affichage LCD 16×2, relais de puissance et logique à trois états — conçu pour surveiller et réguler automatiquement la température d'un espace fermé.</p>
+      <div class="hero-actions">
+        <a href="#simulation" class="btn btn-primary">🧪 Voir la simulation</a>
+        <a href="#documentation" class="btn btn-secondary">📄 Documentation</a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="state-card">
+        <div class="state-card-title">Logique de contrôle · 3 états</div>
+        <div class="states-grid">
+          <div class="state-row state-normal">
+            <div class="state-dot dot-green"></div>
+            <div class="state-info">
+              <div class="state-name">NORMAL</div>
+              <div class="state-cond">T ≤ 25 °C · Ventilateur OFF · AC OFF</div>
+            </div>
+            <div class="state-temp">≤ 25°</div>
+          </div>
+          <div class="state-row state-ventil">
+            <div class="state-dot dot-blue"></div>
+            <div class="state-info">
+              <div class="state-name">VENTILATION</div>
+              <div class="state-cond">25 &lt; T ≤ 30 °C · Ventilateur ON · AC OFF</div>
+            </div>
+            <div class="state-temp">25–30°</div>
+          </div>
+          <div class="state-row state-alerte">
+            <div class="state-dot dot-red"></div>
+            <div class="state-info">
+              <div class="state-name">ALERTE</div>
+              <div class="state-cond">T &gt; 30 °C · Ventilateur ON · AC ON</div>
+            </div>
+            <div class="state-temp">&gt; 30°</div>
+          </div>
+        </div>
+        <div class="seuils-row">
+          <div class="seuil-item">
+            <div class="seuil-label">Seuil ventilation</div>
+            <div class="seuil-val" style="color:var(--blue);">25 °C</div>
+          </div>
+          <div class="seuil-divider"></div>
+          <div class="seuil-item">
+            <div class="seuil-label">Seuil alerte</div>
+            <div class="seuil-val" style="color:var(--red);">30 °C</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROJET -->
+<section id="projet">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Aperçu du projet</div>
+      <h2 class="section-title">Automatisation thermique embarquée</h2>
+      <p class="section-subtitle">Régulation autonome de température avec détection, affichage et actionnement en temps réel — adapté au contexte local.</p>
+    </div>
+    <div class="projet-grid">
+      <div class="info-blocks reveal">
+        <div class="info-block">
+          <div class="info-block-title">Problématique</div>
+          <div class="info-block-text">La gestion manuelle de la température dans des locaux techniques ou résidentiels est inefficace et génère des risques de surchauffe. Ce projet propose une solution automatisée bas coût, adaptée au contexte local.</div>
+        </div>
+        <div class="info-block">
+          <div class="info-block-title">Objectif</div>
+          <div class="info-block-text">Concevoir un système embarqué capable de mesurer la température en continu, d'afficher l'état sur LCD, et d'activer automatiquement le ventilateur ou la climatisation selon deux seuils définis (25 °C et 30 °C).</div>
+        </div>
+        <div class="info-block">
+          <div class="info-block-title">Architecture logicielle</div>
+          <div class="info-block-text">Logique à trois états via macros RELAY_ON/RELAY_OFF. Boucle non bloquante avec <code style="font-family:monospace;font-size:0.85em;">millis()</code> pour le clignotement LED. Pull-up 10 kΩ sur DHT11. Conflit Pin 13/LCD résolu par déplacement D7 sur A1.</div>
+        </div>
+        <div class="info-block">
+          <div class="info-block-title">Établissement</div>
+          <div class="info-block-text">Université de Labé · Département Énergie Photovoltaïque<br>Licence 3 — Année académique 2025–2026</div>
+        </div>
+      </div>
+      <div class="components-list reveal">
+        <div class="comp-title">Composants matériels</div>
+        <div class="comp-item"><div class="comp-icon">🔵</div>Arduino UNO R3</div>
+        <div class="comp-item"><div class="comp-icon">🌡️</div>Capteur DHT11 (T° + Humidité)</div>
+        <div class="comp-item"><div class="comp-icon">📺</div>LCD 16×2 — mode 4 bits parallèle</div>
+        <div class="comp-item"><div class="comp-icon">⚡</div>2× Module relais (ventilateur + AC)</div>
+        <div class="comp-item"><div class="comp-icon">💡</div>4× LEDs (Vert, Bleu, Jaune, Rouge)</div>
+        <div class="comp-item"><div class="comp-icon">🔌</div>Résistance pull-up 10 kΩ</div>
+        <div class="comp-item"><div class="comp-icon">⚙️</div>Potentiomètre contraste LCD</div>
+        <div class="comp-item"><div class="comp-icon">🪛</div>Breadboard + câbles dupont</div>
+        <div class="brochage">
+          <div class="brochage-title">Brochage clé</div>
+          <code>DHT11=Pin2 · RS=8 · EN=9<br>D4=10 D5=11 D6=12 D7=A1<br>Relay Vent=7 · Relay AC=6<br>LED: Vert=3 Bleu=13 Jaune=4 Rouge=5</code>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROTOTYPE -->
+<section id="prototype">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Réalisation physique</div>
+      <h2 class="section-title">Le prototype en fonctionnement</h2>
+      <p class="section-subtitle">Deux états capturés en conditions réelles — la logique de contrôle opérationnelle sur le matériel physique.</p>
+    </div>
+    <div class="proto-grid-full reveal">
+      <div style="grid-column:1/-1;">
+        <div class="proto-card">
+        <img src="photo-normal.jpg" alt="Prototype en état NORMAL — T:24.2°C">
+        <div class="proto-caption">
+          <div class="proto-caption-state" style="background:#F0FDF4;color:#2D6A4F;border:1px solid #BBF7D0;">● État NORMAL</div>
+          <div class="proto-caption-title">T : 24,2 °C · H : 95 %</div>
+          <div class="proto-caption-desc">LED verte + bleue allumées · Ventilateur OFF · AC OFF · LCD affiche "Etat: NORMAL"</div>
+        </div>
+      </div>
+      <div class="proto-card">
+        <img src="photo-ventilation.jpg" alt="Prototype en état VENTILATION — T:29.4°C">
+        <div class="proto-caption">
+          <div class="proto-caption-state cap-ventil">● État VENTILATION</div>
+          <div class="proto-caption-title">T : 29,4 °C · H : 51 %</div>
+          <div class="proto-caption-desc">LED jaune allumée · Ventilateur activé · AC OFF · LCD affiche "VENTILATEUR ON"</div>
+        </div>
+      <div class="proto-card">
+        <img src="photo-alerte.jpg" alt="Prototype en état ALERTE — T:30.4°C">
+        <div class="proto-caption">
+          <div class="proto-caption-state cap-alerte">● État ALERTE</div>
+          <div class="proto-caption-title">T : 30,4 °C · H : 54 %</div>
+          <div class="proto-caption-desc">LED rouge allumée · Ventilateur ON · AC activé · LCD affiche "!CLIMATISEUR ON!"</div>
+        </div>
+    </div>
+    </div>
+</section>
+
+<!-- SIMULATION -->
+<section id="simulation">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Application interactive</div>
+      <h2 class="section-title">Simulateur du prototype</h2>
+      <p class="section-subtitle">Testez le comportement du système en temps réel. L'application reproduit la logique Arduino — seuils, états, actionneurs.</p>
+    </div>
+    <div class="sim-card reveal">
+      <div class="sim-header">
+        <div>
+          <h3>Simulateur de contrôle de température</h3>
+          <p>Propulsé par Google AI Studio · Interaction en temps réel</p>
+        </div>
+        <a href="https://ai.studio/apps/be9039bc-176c-4f39-81e5-e9a31c089341" target="_blank" rel="noopener" class="btn btn-primary">🚀 Ouvrir la simulation</a>
+      </div>
+      <div class="sim-body">
+        <div class="sim-body-inner">
+          <div class="sim-emoji">🌡️</div>
+          <h4>Application de simulation interactive</h4>
+          <p>Simulez les trois états — NORMAL, VENTILATION, ALERTE — et observez la réponse des actionneurs en temps réel.</p>
+          <a href="https://ai.studio/apps/be9039bc-176c-4f39-81e5-e9a31c089341" target="_blank" rel="noopener" class="btn btn-primary">Accéder à la simulation →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DOCUMENTATION -->
+<section id="documentation">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Ressources du projet</div>
+      <h2 class="section-title">Documentation complète</h2>
+      <p class="section-subtitle">Rapport technique, présentation de soutenance et simulateur — tout le matériel en accès direct.</p>
+    </div>
+    <div class="docs-grid reveal">
+      <a class="doc-card" href="https://docs.google.com/document/d/1-i-Dl5IXwZYlcyEVL7TZOCT9gXeCfJds/edit?usp=drivesdk&ouid=105066587142820192842&rtpof=true&sd=true" target="_blank" rel="noopener">
+        <div class="doc-icon">📋</div>
+        <div class="doc-title">Rapport technique de fin de cycle</div>
+        <div class="doc-desc">Documentation complète : problématique, conception, schémas de câblage, code Arduino, tests et résultats.</div>
+        <div class="doc-link">📥 Ouvrir le rapport →</div>
+      </a>
+      <a class="doc-card" href="https://docs.google.com/presentation/d/1OMgcoESrXB5kb3tS9z9qPftbDVj4eHpr/edit?usp=drivesdk&ouid=105066587142820192842&rtpof=true&sd=true" target="_blank" rel="noopener">
+        <div class="doc-icon">🎯</div>
+        <div class="doc-title">Présentation de soutenance</div>
+        <div class="doc-desc">Diaporama complet : résumé du projet, architecture système, démonstration des états et résultats.</div>
+        <div class="doc-link">📊 Voir la présentation →</div>
+      </a>
+      <a class="doc-card" href="https://ai.studio/apps/be9039bc-176c-4f39-81e5-e9a31c089341" target="_blank" rel="noopener">
+        <div class="doc-icon">🧪</div>
+        <div class="doc-title">Application de simulation</div>
+        <div class="doc-desc">Simulateur interactif reproduisant fidèlement le comportement du prototype Arduino en temps réel.</div>
+        <div class="doc-link">🚀 Lancer la simulation →</div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ÉQUIPE -->
+<section id="equipe">
+  <div class="section-inner reveal">
+    <div class="section-label">Les acteurs du projet</div>
+    <h2 class="section-title">Équipe &amp; encadrement</h2>
+    <div class="team-section-label">Membres du groupe</div>
+    <div class="members-grid">
+      <div class="member-card"><div class="member-avatar av-member">MD</div><div class="member-name">Mohamed Cheick Kalifa Diallo</div><div class="member-role">Étudiant L3 Énergie Photovoltaïque</div></div>
+      <div class="member-card"><div class="member-avatar av-member">BK</div><div class="member-name">Blaise Koulemou</div><div class="member-role">Étudiant L3 Énergie Photovoltaïque</div></div>
+      <div class="member-card"><div class="member-avatar av-member">AK</div><div class="member-name">Adama Diouldé Keita</div><div class="member-role">Étudiant L3 Énergie Photovoltaïque</div></div>
+    </div>
+    <div class="team-section-label">Encadreurs du projet</div>
+    <div class="members-grid">
+      <div class="member-card"><div class="member-avatar av-encadrant">MM</div><div class="member-name">M. Mohamed Makanera</div><div class="member-role">Encadreur</div></div>
+      <div class="member-card"><div class="member-avatar av-encadrant">AO</div><div class="member-name">M. Alpha Oumar Kolon Diallo</div><div class="member-role">Encadreur</div></div>
+      <div class="member-card"><div class="member-avatar av-encadrant">FB</div><div class="member-name">Dre. Fatima Ba</div><div class="member-role">Encadreure</div></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-title">Système de contrôle automatique de température — Arduino</div>
+  <div class="footer-sub">Université de Labé · Département Énergie Photovoltaïque<br>Projet de fin de cycle · Licence 3 · 2025–2026</div>
+  <hr class="footer-divider">
+  <div class="footer-copy">© 2026 — Diallo · Koulemou · Keita · Université de Labé, Guinée</div>
+</footer>
+
+<script>
+  const reveals = document.querySelectorAll('.reveal');
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 80);
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08 });
+  reveals.forEach(el => obs.observe(el));
+
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.nav-links a');
+  window.addEventListener('scroll', () => {
+    let cur = '';
+    sections.forEach(s => { if (window.scrollY >= s.offsetTop - 90) cur = s.id; });
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + cur);
+    });
+  });
+</script>
+</body>
+</html>
